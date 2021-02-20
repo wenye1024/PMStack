@@ -87,7 +87,7 @@ class Portfolio_Print(portfolio_plot.Portfolio_Plot):
  
 
 
-        for long_short in self.long_short_list:
+        for long_short in self.long_short_options:
             print()
             print(long_short, " book:")
             

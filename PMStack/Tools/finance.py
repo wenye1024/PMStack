@@ -11,18 +11,18 @@ import warnings
 
 
 def optionDecompose(option):
-    #option = 'ttwo 19jan18 42.0 c'
     s = option.split()
-    ticker = s[0]
-    expiration = datetime.strptime(s[1], '%d%b%y')  
-    strike = float(s[2])
-    
-    if (s[3] in ['c','C']):
-        t = 'Call'
-    elif (s[3] in ['p', 'P']):
-        t = 'Put'
-    
-    return ticker, expiration, strike, t
+    underlying = s[0]
+    expiration = datetime.strptime(s[1], '%m/%d/%y') 
+    typ = s[2][0]
+    strike = float(s[2][1:])
+
+    if (typ in ['c','C']):
+        typ = 'Call'
+    elif (typ in ['p', 'P']):
+        typ = 'Put'
+
+    return underlying, expiration, strike, typ
 
 def optionIntrinsicValue(strike, optionType, currentPrice):
     if (optionType in ['CALL', 'Call', 'call', 'c', 'C']):

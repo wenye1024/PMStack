@@ -242,7 +242,7 @@ class Portfolio_Core:
         if self.__debug_mode__: print('Entering', inspect.stack()[0][3]) 
 
         
-        
+        self.option_contract_size = 100
         
         #self.file_output = True
         
@@ -273,7 +273,9 @@ class Portfolio_Core:
         
         #option related
         self.option_balance = pd.DataFrame(index = self.equity_prices_USD.index.copy())
+        self.equity_balance['Options'] = self.option_balance
         self.option_cumulative_cost_USD = pd.DataFrame(index = self.equity_prices_USD.index.copy())
+        self.equity_cumulative_cost_USD['Options'] = self.option_cumulative_cost_USD
         
         
         self.currency_names = self.forex.columns.tolist()
@@ -283,7 +285,7 @@ class Portfolio_Core:
         self.currency_balance_short = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.currency_names).fillna(0.0) # equity shorts
         self.currency_balance_options = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.currency_names).fillna(0.0) # options
         self.currency_balance_other = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.currency_names).fillna(0.0) # interest, dividends, etc
-        self.currency_balance = {'Long': self.currency_balance_long, 'Short': self.currency_balance_short}
+        self.currency_balance = {'Long': self.currency_balance_long, 'Short': self.currency_balance_short, 'Options':self.currency_balance_options}
         
         self.PA_snapshots = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=['Cumulative_Capital_Flow', 'Cumulative_Dividends', 'Balance_EOD', 'Daily_P&L','Daily_Return','Cum_P&L','Port_NAV','Benchmark_Return',  'Benchmark_Normalized','Gross_Exposure','Net_Exposure','Capital_Deployment']).fillna(0.0)
         self.PA_snapshots_other = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=['Cumulative_Dividends_Long', 'Cumulative_Dividends_Short', 'Cumulative_Credit_Interest', 'Cumulative_Short_Interest']).fillna(0.0)
@@ -305,7 +307,6 @@ class Portfolio_Core:
         self.start_date = helpers.string_to_date(start_date)
         if end_date != None: self.end_date = helpers.string_to_date(end_date)
         
-        self.__setAnalysisScope__(self.start_date, self.end_date)
         
         self.has_option_book = (abs(self.option_balance.values).sum()>0)
 
@@ -315,6 +316,13 @@ class Portfolio_Core:
         else:
             self.long_only = False
             self.long_short_list = ['Long', 'Short']
+
+        self.long_short_options = self.long_short_list.copy()
+        if self.has_option_book: self.long_short_options.append('Options')
+
+
+        self.__setAnalysisScope__(self.start_date, self.end_date)
+
 
         #print(self.equity_value_USD)
         
@@ -342,23 +350,6 @@ class Portfolio_Core:
         # P&L-related scope: start_date_plus_one to end_date
         end_date_plus_one = end_date + timedelta(1)
 
-        
-        '''
-        Option part
-        '''
-        
-        self.option_balance = self.option_balance.loc[start_date : end_date_plus_one]
-        #traded_options is the list of tickers that has been traded during the period
-        traded_options = helpers.non_zero_dataFrame_columns_or_rows(self.option_balance, 'column')
-        self.option_balance = self.option_balance.loc[:, traded_options]
-        self.option_cumulative_cost_USD = self.option_cumulative_cost_USD.loc[start_date : end_date_plus_one, traded_options]
-        self.currency_balance_options = self.currency_balance_options.loc[start_date : end_date_plus_one]
-
-
-        '''
-        Equity and Currency part
-        '''
-        
         self.equity_prices_USD_full_history = self.equity_prices_USD
         self.equity_prices_local_full_history = self.equity_prices_local 
         self.equity_daily_return_local_full_history = self.equity_daily_return_local
@@ -388,13 +379,48 @@ class Portfolio_Core:
         self.trades = self.trades[start_date_plus_one : end_date_plus_one]
         self.equity_and_ETF_trades = self.equity_and_ETF_trades[start_date_plus_one : end_date_plus_one]
 
-        
+
+
+        'Equity and Options common part'
+
         self.equity_value_USD = {}
+        self.equity_cashflows = {}
+
+        for long_short in ['Long','Short','Options']:
+            self.equity_balance[long_short] = self.equity_balance[long_short].loc[start_date : end_date_plus_one]
+            self.equity_value_USD[long_short] = self.equity_balance[long_short] * self.equity_prices_USD
+
+            self.equity_cashflows[long_short] = self.equity_cumulative_cost_USD[long_short].diff()
+            self.equity_cashflows[long_short] = self.equity_cashflows[long_short].loc[start_date : end_date_plus_one]
+            self.equity_cashflows[long_short].iloc[0] = 0.0
+
+
+
+        
+        '''
+        Option part
+        '''
+        self.equity_value_USD['Options'] *= self.option_contract_size
+        
+        #self.option_balance = self.option_balance.loc[start_date : end_date_plus_one]
+        #traded_options is the list of tickers that has been traded during the period
+        traded_options = helpers.non_zero_dataFrame_columns_or_rows(self.option_balance, 'column')
+        self.option_balance = self.option_balance.loc[:, traded_options]
+        self.option_cumulative_cost_USD = self.option_cumulative_cost_USD.loc[start_date : end_date_plus_one, traded_options]
+        self.currency_balance_options = self.currency_balance_options.loc[start_date : end_date_plus_one]
+
+
+        '''
+        Equity and Currency part
+        '''
+        
+
+        
         self.currency_balance_USD = {}
         self.equity_investment_cashflows = {}
         self.equity_investment_cashflows_shift_minus_one = {}
         self.equity_payment_cashflows = {}
-        self.equity_cashflows = {}
+
 
         '''
         equity_holding_window = 0 on the day the position is opened, =1 on the day the position is closed
@@ -407,13 +433,11 @@ class Portfolio_Core:
 
 
         for long_short in ['Long', 'Short']:
-            self.equity_balance[long_short] = self.equity_balance[long_short].loc[start_date : end_date_plus_one]
-            self.equity_value_USD[long_short] = self.equity_balance[long_short] * self.equity_prices_USD
+            #self.equity_balance[long_short] = self.equity_balance[long_short].loc[start_date : end_date_plus_one]
+            #self.equity_value_USD[long_short] = self.equity_balance[long_short] * self.equity_prices_USD
 
 
-            self.equity_cashflows[long_short] = self.equity_cumulative_cost_USD[long_short].diff()
-            self.equity_cashflows[long_short] = self.equity_cashflows[long_short].loc[start_date : end_date_plus_one]
-            self.equity_cashflows[long_short].iloc[0] = 0.0
+
             
             #traded_equities is the list of tickers that has been traded during the period, by descending orders of position size
             owned_equities = set(helpers.non_zero_dataFrame_columns_or_rows(self.equity_balance[long_short], 'column'))
@@ -498,6 +522,7 @@ class Portfolio_Core:
         #self.currency_balance_options
         
         self.option_intrinsic_value = pd.DataFrame(index = self.option_balance.index.values, columns=self.option_balance.columns.values).fillna(0.0)
+        '''
         for ticker in self.option_balance.columns:
             
             tk, expiration, strike, tp = finance.optionDecompose(ticker)
@@ -513,7 +538,7 @@ class Portfolio_Core:
                 self.option_intrinsic_value.loc[current_date, ticker] = iv * self.option_balance.loc[current_date, ticker] * 100
                 #print(iv, self.option_balance.loc[current_date, ticker])
         # end of for loop: for ticker in self.option_balance.columns        
-
+        '''
         pas = self.PA_snapshots_pure_cap_return #to shorten the code
         pas['Options'] = self.option_intrinsic_value.sum(axis = 1)
         pas['Currency_Options'] = (self.currency_balance_options * self.forex).sum(axis = 1)      
@@ -541,12 +566,12 @@ class Portfolio_Core:
         self.equity_PnL = {}
         self.equity_daily_capital_base = {} # base line to calculate return. The diff is PnL
         self.equity_PnL_cumulative = {}
-        for long_short in ['Long', 'Short']:
+        for long_short in ['Long', 'Short', 'Options']:
             df = self.equity_value_USD[long_short] + self.equity_cumulative_cost_USD[long_short]
             self.equity_PnL[long_short] = df.diff().iloc[1:]
             self.equity_daily_capital_base[long_short] = self.equity_value_USD[long_short].shift(1) - self.equity_cashflows[long_short]
             
-        for long_short in self.long_short_list:
+        for long_short in self.long_short_options:
             self.equity_PnL_cumulative[long_short] = self.equity_PnL[long_short].cumsum()
         
 
@@ -880,7 +905,7 @@ class Portfolio_Core:
             pxchg.columns = ['PxChg']
 
 
-        for long_short in ['Long', 'Short']:
+        for long_short in self.long_short_options:
             row = self.equity_balance[long_short].loc[date]
             
             
@@ -922,12 +947,14 @@ class Portfolio_Core:
             holdings['Long'].sort_values(sort_by, ascending = False, inplace = True)
             holdings['Short'].sort_values(sort_by, ascending = False, inplace = True)
 
+        '''
         if self.has_option_book:
             row = self.option_balance.loc[date]
             if exited_positions:
                 holdings['Options'] = pd.DataFrame(row)
             else:
                 holdings['Options'] = pd.DataFrame(row[row!=0])
+        '''
 
         return holdings
 
