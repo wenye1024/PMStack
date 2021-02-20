@@ -443,7 +443,7 @@ def load_trades_file(filename, sheetname):
 
 
 def load_price_file(filename):
-    r = historical_price.get_price_history(workbook_name = filename, print_out = False)
+    r = historical_price.get_price_history(workbook = filename, print_out = False)
     equity_prices_local = r['equity_price_local'].iloc[-1]
     forex = r['forex'].iloc[-1]
     return equity_prices_local, forex

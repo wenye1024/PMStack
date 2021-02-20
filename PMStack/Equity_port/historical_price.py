@@ -238,84 +238,98 @@ def define_day_one_levered_series(new_ticker, ticker, leverage, price_table, dai
 '''
 range does not include the last row/column
 '''
-def get_price_history (workbook_name='Historical price.xlsx', sheet_name='Historical price', print_out = True, base_currency = 'USD'):        
+def get_price_history (workbook='Historical price.xlsx', sheet='Historical price', print_out = True, base_currency = 'USD', workbook_2 = None, sheet_2 = None):        
 
-    
-    xl = pd.ExcelFile(workbook_name)
-    sheet = xl.parse(sheet_name)
-    sheet.reset_index(inplace = True)
-    sheet.set_index('Index', inplace = True)
-    sheet.drop(columns = ['index'], inplace = True)
-    #print(sheet)
-    
-    col = sheet.loc['Name',:].isnull()
-    
-    currencies = col[col==True].index.tolist()
-    #print(currencies)
-    forex = sheet[currencies].dropna(axis = 'index', how='any')
-    
+    def __get_price_history_helper__(workbook, sheet, base_currency, has_forex):
+        xl = pd.ExcelFile(workbook)
+        sheet = xl.parse(sheet)
+        sheet.reset_index(inplace = True)
+        sheet.set_index('Index', inplace = True)
+        sheet.drop(columns = ['index'], inplace = True)
+        #print(sheet)
 
-    # remove rows with #Calc
-    valid_dates = (forex!='#Calc').all(axis = 1)
-    #print(self.forex)
-    forex = (forex[valid_dates]).astype('float32')
+        col = sheet.loc['Name',:].isnull()
+        
+        if has_forex is True:
+            currencies = col[col==True].index.tolist()
+            forex = sheet[currencies].dropna(axis = 'index', how='any')
+            
 
-    forex.index = pd.to_datetime(forex.index)
-    forex.loc[:, 'USD'] = 1.0
+            valid_dates = (forex!='#Calc').all(axis = 1)
 
-    if base_currency != 'USD':
-        forex = forex.div(forex[base_currency], axis=0)
+            forex = (forex[valid_dates]).astype('float32')
 
-    tickers = col[col==False].index.tolist()        
-    sheet_equity = sheet[tickers]#.dropna(axis = 'index', how='any')
+            forex.index = pd.to_datetime(forex.index)
+            forex.loc[:, 'USD'] = 1.0
 
-    company_name = pd.DataFrame(sheet_equity.loc['Name',:])
-    company_name.columns = ['Name']
-    company_name.index.name = 'Ticker'
-    
-    
-    
-    equity_currency = sheet_equity.loc['Currency',:]
-    
-    sheet_equity = sheet_equity.drop(index = ['Name', 'Currency'])
-    
-    # remove rows with #Calc
-    valid_dates = (sheet_equity!='#Calc').all(axis = 1)
+            if base_currency != 'USD':
+                forex = forex.div(forex[base_currency], axis=0)
 
-    equity_prices_local = (sheet_equity[valid_dates]).astype('float32')        
-    equity_prices_local.index = pd.to_datetime(equity_prices_local.index)
-    equity_prices_local.index.name = 'Date'
+        tickers = col[col==False].index.tolist()        
+        sheet_equity = sheet[tickers]#.dropna(axis = 'index', how='any')
 
-    
-    equity_daily_return_local = equity_prices_local.pct_change(1) #.dropna(axis = 0)
+        company_name = pd.DataFrame(sheet_equity.loc['Name',:])
+        company_name.columns = ['Name']
+        company_name.index.name = 'Ticker'
+        
+        
+        
+        equity_currency = sheet_equity.loc['Currency',:]
+        
+        sheet_equity = sheet_equity.drop(index = ['Name', 'Currency'])
+        
+        # remove rows with #Calc
+        valid_dates = (sheet_equity!='#Calc').all(axis = 1)
 
-    equity_prices_USD = equity_prices_local.copy()
-    for i, v in equity_currency.iteritems():
+        equity_prices_local = (sheet_equity[valid_dates]).astype('float32')        
+        equity_prices_local.index = pd.to_datetime(equity_prices_local.index)
+        equity_prices_local.index.name = 'Date'
+
+                
+        r = {}
+        if has_forex is True: r['forex'] = forex
+        r['company_name'] = company_name
+        r['equity_currency'] = equity_currency
+        r['equity_price_local'] = equity_prices_local
+        
+        return r
+
+    r = __get_price_history_helper__(workbook, sheet, base_currency, has_forex = True)
+
+    if workbook_2 is not None:
+        r1 = __get_price_history_helper__(workbook_2, sheet_2, base_currency, has_forex = False)  
+        r['equity_price_local'] = pd.concat([r['equity_price_local'],r1['equity_price_local']], axis=1 )
+        r['equity_currency'] = pd.concat([r['equity_currency'],r1['equity_currency']] )
+        r['company_name'] = pd.concat([r['company_name'],r1['company_name']] )
+
+
+
+
+    equity_daily_return_local = r['equity_price_local'].pct_change(1) #.dropna(axis = 0)
+
+    equity_prices_USD = r['equity_price_local'].copy()
+    for i, v in r['equity_currency'].iteritems():
         if (v!=base_currency):
-            equity_prices_USD[i] = equity_prices_local[i] * forex[v]
+            equity_prices_USD[i] = r['equity_price_local'][i] * r['forex'][v]
     
     equity_daily_return_USD = equity_prices_USD.pct_change(1)
 
+    
+    __define_cash_port__(r['equity_price_local'], equity_daily_return_local, r['company_name'])
 
-    if print_out:
-        start_date = helpers.date_to_string(forex.index[0]) #pd.Timestamp(forex.index[0]).strftime('%Y-%m-%d') 
-        end_date = helpers.date_to_string(forex.index[-1]) #pd.Timestamp(forex.index[-1]).strftime('%Y-%m-%d')
-        print('Loaded price history from', start_date, 'to', end_date)
-        print()
-    
-    
-    __define_cash_port__(equity_prices_local, equity_daily_return_local, company_name)
-    
-    r = {}
-    r['forex'] = forex
-    r['company_name'] = company_name
-    r['equity_currency'] = equity_currency
-    r['equity_price_local'] = equity_prices_local
     r['equity_price_USD'] = equity_prices_USD
     r['equity_daily_return_local'] = equity_daily_return_local
     r['equity_daily_return_USD'] = equity_daily_return_USD
-    r['end_date'] = pd.Timestamp(forex.index[-1])
-    
+    r['end_date'] = pd.Timestamp(r['equity_price_local'].index[-1])
+
+
+
+    if print_out:
+        start_date = helpers.date_to_string(r['forex'].index[0]) #pd.Timestamp(forex.index[0]).strftime('%Y-%m-%d') 
+        end_date = helpers.date_to_string(r['forex'].index[-1]) #pd.Timestamp(forex.index[-1]).strftime('%Y-%m-%d')
+        print('Loaded price history from', start_date, 'to', end_date)
+        print()
+
     #return forex, company_name, equity_currency, equity_prices_local, equity_daily_return_local, equity_prices_USD, equity_daily_return_USD
     return r
 

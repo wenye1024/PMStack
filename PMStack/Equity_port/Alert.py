@@ -28,10 +28,10 @@ class Alert:
         self.today = today
         self.last_year = pd.Series(pd.date_range(end=self.today, periods=365)) #total calendar days
     
-    def get_price_history (self, history = None, workbook_name='Historical price.xlsx', sheet_name='Historical price'):        
+    def get_price_history (self, history = None, workbook='Historical price.xlsx', sheet='Historical price'):        
         
         if history is None:
-            r = historical_price.get_price_history(workbook_name=workbook_name, sheet_name=sheet_name)
+            r = historical_price.get_price_history(workbook=workbook, sheet=sheet)
         else:
             r = history
         #self.forex = r['forex']

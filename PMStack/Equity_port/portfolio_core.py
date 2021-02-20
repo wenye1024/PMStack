@@ -41,8 +41,9 @@ class Portfolio_Core:
         self.trades = historical_trades.get_trade_history(workbook_name, sheet_name, accounts)
         #print(self.trades)   
         
-    def __get_price_history__ (self, workbook_name, sheet_name, base_currency):        
-        r = historical_price.get_price_history(workbook_name=workbook_name, sheet_name=sheet_name, base_currency=base_currency)
+    def __get_price_history__ (self, file_price, base_currency):
+           
+        r = historical_price.get_price_history(**file_price, base_currency=base_currency)
         self.forex = r['forex']
         self.company_name = r['company_name']
         self.equity_currency = r['equity_currency']
@@ -51,6 +52,8 @@ class Portfolio_Core:
         self.equity_daily_return_local = r['equity_daily_return_local']
         self.equity_daily_return_USD = r['equity_daily_return_USD']
         self.end_date = r['end_date']
+
+
 
         
     '''
@@ -97,10 +100,7 @@ class Portfolio_Core:
                 
                 self.__balance_roll_over__(current_index, current_date)
             
-            '''
-            Skip option trades
-            '''    
-            #print(t.type, t.quantity, t.ticker)
+
             
             if (trade['TransactionType'] == 'DEPOSIT'):
                 self.currency_balance_other.at[current_date, trade['Currency']] += trade['TransactionAmount']
@@ -125,6 +125,8 @@ class Portfolio_Core:
             elif (trade['TransactionType'] == 'TRANSFERS'):
                 continue
             elif (trade['TransactionType'] == 'FEE'):
+                continue
+            elif (trade['TransactionType'] == 'BORROW FEE'):
                 continue
             elif (trade['SecurityType'] in ['Equity', 'ETF']):
                 
@@ -188,10 +190,10 @@ class Portfolio_Core:
             elif(trade['SecurityType'] == 'Put' or trade['SecurityType'] == 'Call'):
 
                 #print('Option trades not processed: ', pd.Timestamp(tdate).strftime('%Y-%m-%d'), trade['TransactionType'], trade['Ticker']  )
-                continue
+                #continue
 
                 #print(t.ticker, t.quantity, t.transaction_amount, t.currency)
-                ticker, expiration, strike, tp = finance.optionDecompose(trade['Ticker'])
+                #ticker, expiration, strike, tp = finance.optionDecompose(trade['Ticker'])
                 if(not(trade['Ticker'] in self.option_balance.columns)):
                     self.option_balance[trade['Ticker']] = 0
                     self.option_cumulative_cost_USD[trade['Ticker']] = 0
@@ -201,7 +203,7 @@ class Portfolio_Core:
                 if (trade['TransactionType'] in ['BUY', 'LONG', 'SELL','SHORT','COVER']):
                     amount = trade['TransactionAmount']
                 elif (trade['TransactionType'] in ['Option Assignment', 'Option Execution']):
-                    amount = trade['Quantity'] * 100 * strike + trade['TransactionAmount']
+                    print ('Code not implemented - Option assignment or execution')
 
                 self.currency_balance_options.at[current_date, trade['Currency']] += amount
                 self.option_cumulative_cost_USD.at[current_date, trade['Ticker']] += amount * self.forex.at[current_date, trade['Currency']]
@@ -234,7 +236,7 @@ class Portfolio_Core:
                                
 
     
-    def __init__(self, file_price, file_trades, start_date, end_date=None, capital=None, benchmark = 'SPX', benchmark2=[], base_currency = 'USD', ignore_ticker_list = [], file_stock_info = None ):
+    def __init__(self, file_price, file_trades, start_date, end_date=None, capital=None, benchmark = 'SPX', benchmark2=[], base_currency = 'USD', ignore_ticker_list = [], file_stock_info = None):
         
         self.__debug_mode__ = False
         if self.__debug_mode__: print('Entering', inspect.stack()[0][3]) 
@@ -245,7 +247,7 @@ class Portfolio_Core:
         #self.file_output = True
         
         
-        self.__get_price_history__(file_price['workbook_name'], file_price['sheet_name'], base_currency=base_currency)
+        self.__get_price_history__(file_price, base_currency=base_currency)
         self.__get_trade_history__(**file_trades) #file_trades['workbook_name'], file_trades['sheet_name'])
 
         self.capital = capital
@@ -305,10 +307,7 @@ class Portfolio_Core:
         
         self.__setAnalysisScope__(self.start_date, self.end_date)
         
-        if helpers.isZero(self.option_balance.values.sum()):
-            self.has_option_book = False
-        else:
-            self.has_option_book = True
+        self.has_option_book = (abs(self.option_balance.values).sum()>0)
 
         if helpers.isZero(self.equity_balance['Short'].values.sum()):
             self.long_only = True
@@ -795,6 +794,7 @@ class Portfolio_Core:
         Deal with options
         '''
         if self.has_option_book:
+            '''
             last_row = self.option_balance.loc[self.end_date]
             option_holdings = pd.DataFrame(last_row[last_row!=0])
             option_holdings['Share#'] = option_holdings[self.end_date]  # don't know how to rename the column
@@ -830,7 +830,7 @@ class Portfolio_Core:
             for long_short in ['Long', 'Short']:
                 self.current_holdings[long_short].index.name = 'Ticker'
                 self.current_exposure[long_short].index.name = 'Ticker'
-
+            '''
         
         
         #end if self.has_option_book:
@@ -921,6 +921,13 @@ class Portfolio_Core:
         else:
             holdings['Long'].sort_values(sort_by, ascending = False, inplace = True)
             holdings['Short'].sort_values(sort_by, ascending = False, inplace = True)
+
+        if self.has_option_book:
+            row = self.option_balance.loc[date]
+            if exited_positions:
+                holdings['Options'] = pd.DataFrame(row)
+            else:
+                holdings['Options'] = pd.DataFrame(row[row!=0])
 
         return holdings
 
