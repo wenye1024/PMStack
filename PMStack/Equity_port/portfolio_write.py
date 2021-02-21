@@ -41,14 +41,16 @@ class Portfolio_Write(portfolio_print.Portfolio_Print):
             
             dfs.extend([self.current_holdings[long_short], self.current_exposure[long_short]])
             sheetnames.extend(['Holdings_'+long_short, 'Exposure_'+long_short])
-            
+
+
+        for long_short in ['Long', 'Short', 'Options']:    
             dfs.extend([self.equity_balance[long_short], self.equity_value_USD[long_short], self.equity_PnL[long_short], self.currency_balance[long_short]])
             sheetnames.extend(['Equity_balance_' + long_short, 'Equity_value_USD_' + long_short, 'Equity_P&L_' + long_short, 'Currency_balance_' + long_short])
                 
         # end of for loop for long_short in self.long_short_list:
                     
-        dfs.extend([self.option_balance, self.option_intrinsic_value, self.option_PnL, self.currency_balance_options, self.currency_PnL])
-        sheetnames.extend(['Option_Balance', 'Option_Intrinsic_Value', 'Option_P&L', 'Currency_balance_options', 'Currency_P&L'])
+        #dfs.extend([self.option_balance, self.option_intrinsic_value, self.option_PnL, self.currency_balance_options, self.currency_PnL])
+        #sheetnames.extend(['Option_Balance', 'Option_Intrinsic_Value', 'Option_P&L', 'Currency_balance_options', 'Currency_P&L'])
         
         self.__print_to_excel__(filename, dfs, sheetnames)
         

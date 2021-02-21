@@ -24,14 +24,14 @@ class Portfolio_Core:
 
     
     def __balance_roll_over__(self, current_index, current_date):
-        for long_short in ['Long','Short']:
+        for long_short in ['Long','Short','Options']:
             self.equity_balance[long_short].iloc[current_index] = self.equity_balance[long_short].iloc[current_index-1]
             self.equity_cumulative_cost_USD[long_short].iloc[current_index] = self.equity_cumulative_cost_USD[long_short].iloc[current_index-1]
             self.currency_balance[long_short].iloc[current_index] = self.currency_balance[long_short].iloc[current_index-1]
             
-        self.option_balance.iloc[current_index] = self.option_balance.iloc[current_index-1]
-        self.option_cumulative_cost_USD.iloc[current_index] = self.option_cumulative_cost_USD.iloc[current_index-1]
-        self.currency_balance_options.iloc[current_index] = self.currency_balance_options.iloc[current_index-1]
+        #self.option_balance.iloc[current_index] = self.option_balance.iloc[current_index-1]
+        #self.option_cumulative_cost_USD.iloc[current_index] = self.option_cumulative_cost_USD.iloc[current_index-1]
+        #self.currency_balance_options.iloc[current_index] = self.currency_balance_options.iloc[current_index-1]
         self.currency_balance_other.iloc[current_index] = self.currency_balance_other.iloc[current_index-1]
         self.PA_snapshots.iloc[current_index] = self.PA_snapshots.iloc[current_index-1]
         self.PA_snapshots_other.iloc[current_index] = self.PA_snapshots_other.iloc[current_index-1]
@@ -194,11 +194,11 @@ class Portfolio_Core:
 
                 #print(t.ticker, t.quantity, t.transaction_amount, t.currency)
                 #ticker, expiration, strike, tp = finance.optionDecompose(trade['Ticker'])
-                if(not(trade['Ticker'] in self.option_balance.columns)):
-                    self.option_balance[trade['Ticker']] = 0
-                    self.option_cumulative_cost_USD[trade['Ticker']] = 0
+                if(not(trade['Ticker'] in self.equity_balance['Options'].columns)):
+                    self.equity_balance['Options'][trade['Ticker']] = 0
+                    self.equity_cumulative_cost_USD['Options'][trade['Ticker']] = 0
 
-                self.option_balance.loc[current_date, trade['Ticker']] += trade['Quantity']
+                self.equity_balance['Options'].loc[current_date, trade['Ticker']] += trade['Quantity']
 
                 if (trade['TransactionType'] in ['BUY', 'LONG', 'SELL','SHORT','COVER']):
                     amount = trade['TransactionAmount']
@@ -206,7 +206,7 @@ class Portfolio_Core:
                     print ('Code not implemented - Option assignment or execution')
 
                 self.currency_balance_options.at[current_date, trade['Currency']] += amount
-                self.option_cumulative_cost_USD.at[current_date, trade['Ticker']] += amount * self.forex.at[current_date, trade['Currency']]
+                self.equity_cumulative_cost_USD['Options'].at[current_date, trade['Ticker']] += amount * self.forex.at[current_date, trade['Currency']]
                    
             elif(trade['SecurityType'] == 'Forex'):
                 #print('Forex trades not processed: ', pd.Timestamp(tdate).strftime('%Y-%m-%d'), trade['TransactionType'], trade['Ticker']  )
@@ -272,10 +272,10 @@ class Portfolio_Core:
         self.equity_cumulative_cost_USD = {'Long': self.equity_cumulative_cost_long_USD, 'Short': self.equity_cumulative_cost_short_USD}
         
         #option related
-        self.option_balance = pd.DataFrame(index = self.equity_prices_USD.index.copy())
-        self.equity_balance['Options'] = self.option_balance
-        self.option_cumulative_cost_USD = pd.DataFrame(index = self.equity_prices_USD.index.copy())
-        self.equity_cumulative_cost_USD['Options'] = self.option_cumulative_cost_USD
+        self.equity_balance_options = pd.DataFrame(index = self.equity_prices_USD.index.copy())
+        self.equity_balance['Options'] = self.equity_balance_options
+        self.equity_cumulative_cost_options_USD = pd.DataFrame(index = self.equity_prices_USD.index.copy())
+        self.equity_cumulative_cost_USD['Options'] = self.equity_cumulative_cost_options_USD
         
         
         self.currency_names = self.forex.columns.tolist()
@@ -308,7 +308,7 @@ class Portfolio_Core:
         if end_date != None: self.end_date = helpers.string_to_date(end_date)
         
         
-        self.has_option_book = (abs(self.option_balance.values).sum()>0)
+        self.has_option_book = (abs(self.equity_balance_options[self.start_date:self.end_date].values).sum()>0)
 
         if helpers.isZero(self.equity_balance['Short'].values.sum()):
             self.long_only = True
@@ -329,6 +329,7 @@ class Portfolio_Core:
 
         self.metrics = {}
         self.__calculate_portfolio_PnL__()
+        self.__calculated_option_intrinsic_values__()
         self.__prepare_current_holdings_and_exposure__()
 
         self.__calculate_dividends__()
@@ -388,7 +389,7 @@ class Portfolio_Core:
 
         for long_short in ['Long','Short','Options']:
             self.equity_balance[long_short] = self.equity_balance[long_short].loc[start_date : end_date_plus_one]
-            self.equity_value_USD[long_short] = self.equity_balance[long_short] * self.equity_prices_USD
+            self.equity_value_USD[long_short] = (self.equity_balance[long_short] * self.equity_prices_USD).fillna(0.0)
 
             self.equity_cashflows[long_short] = self.equity_cumulative_cost_USD[long_short].diff()
             self.equity_cashflows[long_short] = self.equity_cashflows[long_short].loc[start_date : end_date_plus_one]
@@ -398,24 +399,14 @@ class Portfolio_Core:
 
         
         '''
-        Option part
+        Option Specific
         '''
         self.equity_value_USD['Options'] *= self.option_contract_size
         
-        #self.option_balance = self.option_balance.loc[start_date : end_date_plus_one]
-        #traded_options is the list of tickers that has been traded during the period
-        traded_options = helpers.non_zero_dataFrame_columns_or_rows(self.option_balance, 'column')
-        self.option_balance = self.option_balance.loc[:, traded_options]
-        self.option_cumulative_cost_USD = self.option_cumulative_cost_USD.loc[start_date : end_date_plus_one, traded_options]
-        self.currency_balance_options = self.currency_balance_options.loc[start_date : end_date_plus_one]
-
-
-        '''
-        Equity and Currency part
-        '''
         
 
-        
+
+
         self.currency_balance_USD = {}
         self.equity_investment_cashflows = {}
         self.equity_investment_cashflows_shift_minus_one = {}
@@ -432,13 +423,7 @@ class Portfolio_Core:
         self.traded_equity_list = {}
 
 
-        for long_short in ['Long', 'Short']:
-            #self.equity_balance[long_short] = self.equity_balance[long_short].loc[start_date : end_date_plus_one]
-            #self.equity_value_USD[long_short] = self.equity_balance[long_short] * self.equity_prices_USD
-
-
-
-            
+        for long_short in ['Long', 'Short', 'Options']:
             #traded_equities is the list of tickers that has been traded during the period, by descending orders of position size
             owned_equities = set(helpers.non_zero_dataFrame_columns_or_rows(self.equity_balance[long_short], 'column'))
             traded_equities = set(helpers.non_zero_dataFrame_columns_or_rows(self.equity_cashflows[long_short], 'column'))
@@ -510,41 +495,36 @@ class Portfolio_Core:
         if self.__debug_mode__: print('Exiting', inspect.stack()[0][3]) 
 
 
+
+    def __calculated_option_intrinsic_values__(self):
+        if self.__debug_mode__: print('Entering', inspect.stack()[0][3])
+
+        self.option_intrinsic_value = pd.DataFrame(index = self.equity_balance['Options'].index.values, columns=self.equity_balance['Options'].columns.values).fillna(0.0)
+        self.option_dict = pd.DataFrame(index = self.equity_balance['Options'].columns.values, columns = ['Underlying', 'Exp', 'Strike', 'Type'])
+        for ticker in self.equity_balance['Options'].columns:            
+            tk, expiration, strike, tp = finance.optionDecompose(ticker)
+            self.option_dict.loc[ticker,'Underlying'] = tk
+            self.option_dict.loc[ticker,'Exp'] = expiration
+            self.option_dict.loc[ticker,'Strike'] = strike
+            self.option_dict.loc[ticker,'Type'] = tp
+            for current_date in self.equity_balance['Options'].index:
+                iv = finance.optionIntrinsicValue(strike, tp, self.equity_prices_local.loc[current_date, tk])
+                self.option_intrinsic_value.loc[current_date, ticker] = iv * self.equity_balance['Options'].loc[current_date, ticker] * self.option_contract_size
+                
+        if self.__debug_mode__: print('Exiting', inspect.stack()[0][3])
+
+
     def __calculate_portfolio_PnL__(self):        
         
         if self.__debug_mode__: print('Entering', inspect.stack()[0][3])
         
-        '''
-        Option P&L analysis
-        '''
-        #self.option_balance
-        #self.option_cumulative_cost_USD
-        #self.currency_balance_options
-        
-        self.option_intrinsic_value = pd.DataFrame(index = self.option_balance.index.values, columns=self.option_balance.columns.values).fillna(0.0)
-        '''
-        for ticker in self.option_balance.columns:
-            
-            tk, expiration, strike, tp = finance.optionDecompose(ticker)
-            
-            #if (tk!='INTC'): continue
-            #print(tk, expiration, strike, tp)
-            
-            for current_date in self.option_balance.index:
-                
-                #print(strike, tp, self.equity_prices_local.loc[current_date, tk] )
-                 
-                iv = finance.optionIntrinsicValue(strike, tp, self.equity_prices_local.loc[current_date, tk])
-                self.option_intrinsic_value.loc[current_date, ticker] = iv * self.option_balance.loc[current_date, ticker] * 100
-                #print(iv, self.option_balance.loc[current_date, ticker])
-        # end of for loop: for ticker in self.option_balance.columns        
-        '''
+
         pas = self.PA_snapshots_pure_cap_return #to shorten the code
-        pas['Options'] = self.option_intrinsic_value.sum(axis = 1)
+        pas['Options'] = self.equity_value_USD['Options'].sum(axis = 1)
         pas['Currency_Options'] = (self.currency_balance_options * self.forex).sum(axis = 1)      
         pas['Total_Options'] = pas['Options'] + pas['Currency_Options']
 
-        self.option_PnL = (self.option_intrinsic_value + self.option_cumulative_cost_USD).diff().iloc[1:]
+        #self.option_PnL = (self.option_intrinsic_value + self.equity_cumulative_cost_USD['Options']).diff().iloc[1:]
         
         '''
         Equity, Currency, Options analysis
@@ -626,7 +606,7 @@ class Portfolio_Core:
         a = self.forex.diff(1)
         b_long = (self.currency_balance['Long'].shift(1) * a).sum(axis = 1) 
         b_short = (self.currency_balance['Short'].shift(1) * a).sum(axis = 1) 
-        b_options = (self.currency_balance_options.shift(1) * a).sum(axis = 1) 
+        b_options = (self.currency_balance['Options'].shift(1) * a).sum(axis = 1) 
         self.currency_PnL = pd.concat([b_long, b_short, b_options], axis = 1).iloc[1:]
         self.currency_PnL.columns = ['Long','Short','Options']
 
@@ -947,14 +927,13 @@ class Portfolio_Core:
             holdings['Long'].sort_values(sort_by, ascending = False, inplace = True)
             holdings['Short'].sort_values(sort_by, ascending = False, inplace = True)
 
-        '''
+        
         if self.has_option_book:
-            row = self.option_balance.loc[date]
-            if exited_positions:
-                holdings['Options'] = pd.DataFrame(row)
-            else:
-                holdings['Options'] = pd.DataFrame(row[row!=0])
-        '''
+            a = pd.DataFrame(self.option_intrinsic_value.loc[date]).rename(columns={date:'Intrinsic Value'})
+            b = pd.concat([holdings['Options'],self.option_dict,a],axis = 1)
+            b = b.sort_values(['Underlying','Exp']).reset_index().set_index(['Underlying','Ticker'])
+            holdings['Options'] = b.drop(columns = ['Exp','Strike','Type'])
+        
 
         return holdings
 

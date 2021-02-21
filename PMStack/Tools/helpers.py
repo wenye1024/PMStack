@@ -26,7 +26,7 @@ def printIntegerTable(table, columns = None, head = 0, tail = 0, only_print_form
     printFormattedTable(table, "{:,.0f}", columns=columns, head=head, tail=tail, only_print_formatted_columns = only_print_formatted_columns, reset_index=reset_index, print_zero_as=print_zero_as, print_nan_as=print_nan_as, to_display = to_display)
 
 
-def printFormattedTable(table, format, columns = None, format2 = None, columns2 = None, format3 = None, columns3 = None, format4 = None, columns4 = None, format5 = None, columns5 = None, format6 = None, columns6 = None, format7 = None, columns7 = None, head = 0, tail = 0, only_print_formatted_columns = True, reset_index=None, print_zero_as=None, print_nan_as=None, to_display=True):
+def printFormattedTable(table, format = None, columns = None, format2 = None, columns2 = None, format3 = None, columns3 = None, format4 = None, columns4 = None, format5 = None, columns5 = None, format6 = None, columns6 = None, format7 = None, columns7 = None, format8 = None, columns8 = None, head = 0, tail = 0, only_print_formatted_columns = True, reset_index=None, print_zero_as=None, print_nan_as=None, to_display=True):
 
 
     def format_cell(x, format_string):
@@ -41,13 +41,16 @@ def printFormattedTable(table, format, columns = None, format2 = None, columns2 
         return format_string.format(x)
 
     t = pd.DataFrame(table).copy()
-    if columns == None:
+
+    if (format is not None) and (columns is None):
         columns = list(t.columns.values)
         
-    if only_print_formatted_columns: columns_to_print = columns
-        
-    for c in columns:
-        t[c] = t[c].map(lambda x: format_cell(x, format))
+    if only_print_formatted_columns: columns_to_print = []
+
+    if columns is not None:    
+        for c in columns:
+            t[c] = t[c].map(lambda x: format_cell(x, format))
+        if only_print_formatted_columns: columns_to_print.extend(columns)
         
     if columns2 != None:
         for c in columns2:
@@ -84,6 +87,12 @@ def printFormattedTable(table, format, columns = None, format2 = None, columns2 
         for c in columns7:
             t[c] = t[c].map(lambda x: format_cell(x, format7))
         if only_print_formatted_columns: columns_to_print.extend(columns7)
+
+    if columns8 != None:
+        for c in columns8:
+            t[c] = t[c].map(lambda x: format_cell(x, format8))
+        if only_print_formatted_columns: columns_to_print.extend(columns8)
+
 
 
     if reset_index is not None:

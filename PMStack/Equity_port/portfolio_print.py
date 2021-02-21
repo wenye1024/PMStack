@@ -61,8 +61,13 @@ class Portfolio_Print(portfolio_plot.Portfolio_Plot):
 
         if exposure: self.printExposure(date)
 
-        def __printHoldings__(table, lastPx, pxChg, sinceLastTrx, cumPnL):
-            params = dict(table=table, format="{}", columns=['Name'], format2="{:,.0f}", columns2=['Size'], format3="{:.2%}", columns3=['Weight'], only_print_formatted_columns=True, reset_index='')
+        def __printHoldings__(table, lastPx, pxChg, sinceLastTrx, cumPnL, name = True, intrinsicValue = False, reset_index = ''):
+            params = dict(table=table, format2="{:,.0f}", columns2=['Size'], format3="{:.2%}", columns3=['Weight'], only_print_formatted_columns=True, reset_index=reset_index)
+            
+            if name:
+                params['format'] ="{}"
+                params['columns']=['Name']
+            
             if lastPx:
                 params['format4'] = '{:,.2f}'
                 params['columns4'] = ['LastPx']
@@ -82,12 +87,17 @@ class Portfolio_Print(portfolio_plot.Portfolio_Plot):
             if cumPnL:
                 params['format7'] = '{:,.0f}'
                 params['columns7'] = ['CumPnL']
+            
+            if intrinsicValue:
+                params['format8'] = '{:,.0f}'
+                params['columns8'] = ['Intrinsic Value']
+                
                 
             helpers.printFormattedTable(**params)
  
 
 
-        for long_short in self.long_short_options:
+        for long_short in self.long_short_list:
             print()
             print(long_short, " book:")
             
@@ -114,9 +124,20 @@ class Portfolio_Print(portfolio_plot.Portfolio_Plot):
                 __printHoldings__(c, lastPx, pxChg, sinceLastTrx, cumPnL)
 
  
-            exp = self.current_holdings[long_short]['Size'].sum()
+            exp = a['Size'].sum()
             print('Total size = {:,.0f}, {:,.1%} of capital'.format(exp, exp/self.latest_capital))
             print()
+        
+        if self.has_option_book:
+            print()
+            print("Option book:")
+
+            
+            __printHoldings__(hldgs['Options'], lastPx, False, False, cumPnL, intrinsicValue = True, name = False, reset_index = None)
+
+            exp = hldgs['Options']['Size'].sum()
+            print('Total size = {:,.0f}, {:,.1%} of capital'.format(exp, exp/self.latest_capital))
+            print()    
         
         for classifier in printSizeByClassifiers:
             r = self.getCurrentHoldingByClassifier(classifier)
