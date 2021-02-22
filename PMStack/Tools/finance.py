@@ -82,7 +82,7 @@ def xirr(cashflows, error_msg = None):
 
     try:
         irr = optimize.newton(lambda r: xnpv(r,cashflows),guess)
-    except RuntimeError as re:
+    except (RuntimeError, OverflowError) as re:
         warnings.warn(str(re))
         if error_msg!=None: print('Error occurred in calculating IRR:', error_msg)
         irr = 0.0

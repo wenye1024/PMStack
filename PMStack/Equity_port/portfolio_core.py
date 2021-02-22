@@ -931,7 +931,10 @@ class Portfolio_Core:
         if self.has_option_book:
             a = pd.DataFrame(self.option_intrinsic_value.loc[date]).rename(columns={date:'Intrinsic Value'})
             b = pd.concat([holdings['Options'],self.option_dict,a],axis = 1)
-            b = b.sort_values(['Underlying','Exp']).reset_index().set_index(['Underlying','Ticker'])
+            b['Spot'] = b['Underlying'].map(lambda x: self.equity_prices_local.iloc[-1][x])
+            b = b.sort_values(['Underlying','Exp','Strike']).reset_index()
+            b.rename(columns = {'index':'Ticker'}, inplace = True)
+            b = b.set_index(['Underlying', 'Spot','Ticker'])
             holdings['Options'] = b.drop(columns = ['Exp','Strike','Type'])
         
 
