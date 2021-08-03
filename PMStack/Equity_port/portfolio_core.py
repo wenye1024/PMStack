@@ -492,6 +492,18 @@ class Portfolio_Core:
             '''
         # end of for loop : for long_short in ['Long', 'Short']:
 
+
+        # Get last trading days of each month
+        tempTradeDays = self.PA_snapshots.index[1:]
+        self.month_end_dates = []  
+        tempYear = None  
+        dictYears = tempTradeDays.groupby(tempTradeDays.year)
+        for yr in dictYears.keys():
+            tempYear = pd.DatetimeIndex(dictYears[yr]).groupby(pd.DatetimeIndex(dictYears[yr]).month)
+            for m in tempYear.keys():
+                self.month_end_dates.append(max(tempYear[m]))
+
+
         if self.__debug_mode__: print('Exiting', inspect.stack()[0][3]) 
 
 
@@ -628,7 +640,7 @@ class Portfolio_Core:
         pas['Cash'] = pas['Cumulative_Capital_Flow'] + pas['Cumulative_Dividends'] + paspcr['Currency_Long'] + paspcr['Currency_Short']  + paspcr['Currency_Options']
         
         pas['Balance_EOD'] = paspcr['Equity_Long'] + paspcr['Equity_Short'] + paspcr['Options'] + pas['Cash']
-        pas['Daily_P&L'] = self.PA_snapshots_pure_cap_return['Total_P&L']
+        pas['Daily_P&L'] = paspcr['Total_P&L']
         pas['Daily_Return'] = pas['Daily_P&L'] / (pas['Balance_EOD'].shift(1))
         pas.loc[self.start_date, 'Daily_Return'] = 0
         pas['Port_NAV'] = (1 + pas['Daily_Return']).cumprod()
@@ -710,14 +722,20 @@ class Portfolio_Core:
             pas = self.PA_snapshots[['Daily_Return','Benchmark_Return','Benchmark2_Return']]
         pas = pas.iloc[1:]
 
-        pnl = self.PA_snapshots[['Daily_P&L']]
-        pnl = pnl.iloc[1:]
+        pnl = self.PA_snapshots[['Daily_P&L']].iloc[1:]
+
+        pnl_ls = self.PA_snapshots_pure_cap_return[['P&L_Long','P&L_Short']].iloc[1:]
 
         fs = ['A', 'Q', 'M', 'W-SAT']
         def pas_resample(pas,fs):
             for f in fs:
                 p = pas.resample(f).apply(helpers.growth_resampler)
                 p['PnL'] = pnl.resample(f).sum()
+                
+                s = pnl_ls.resample(f).sum()
+                p['Return_Long'] = s['P&L_Long'] / p['PnL'] * p['Daily_Return']
+                p['Return_Short'] = s['P&L_Short'] / p['PnL'] * p['Daily_Return']
+                
                 p['Frequency'] = f
                 yield p
                 
@@ -930,7 +948,7 @@ class Portfolio_Core:
         
         if self.has_option_book:
             a = pd.DataFrame(self.option_intrinsic_value.loc[date]).rename(columns={date:'Intrinsic Value'})
-            b = pd.concat([holdings['Options'],self.option_dict,a],axis = 1)
+            b = pd.concat([holdings['Options'],self.option_dict,a],axis = 1, sort=False)
             b['Spot'] = b['Underlying'].map(lambda x: self.equity_prices_local.iloc[-1][x])
             b = b.sort_values(['Underlying','Exp','Strike']).reset_index()
             b.rename(columns = {'index':'Ticker'}, inplace = True)

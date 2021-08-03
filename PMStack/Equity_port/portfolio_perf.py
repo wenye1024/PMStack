@@ -511,18 +511,29 @@ class Portfolio_Perf(portfolio_core.Portfolio_Core):
                 
         if self.__debug_mode__: print('Exiting', inspect.stack()[0][3])
     
+    def getHoldingByClassifier(self, classifier, date=None, pct=True):
+        if date is None:
+            h = self.current_holdings
+            cap = self.latest_capital
+        else:
+            h = self.holdings_snapshot_of_date(date)
+            cap = self.PA_snapshots['Balance_EOD'][date]
+
+        a = self.sum_along_ticker_index_by_classifier(pd.DataFrame(h['Long']['Size']), classifier)
+        b = self.sum_along_ticker_index_by_classifier(pd.DataFrame(h['Short']['Size']), classifier)
+        t = pd.concat([a, b], axis=1, sort=True).fillna(0.0)
+        t.index.name = classifier
+        t.columns = ['Long', 'Short']
+        if pct:
+            t = t / cap
+        t['Net'] = t['Long'] + t['Short']            
+        return t.sort_values(by='Net', ascending=False)
+        
+        
+    
     def getCurrentHoldingByClassifier(self, classifier, pct=True):
         if not (classifier in self.current_holding_by_classifiers):
-            a = self.sum_along_ticker_index_by_classifier(pd.DataFrame(self.current_holdings['Long']['Size']), classifier)
-            b = self.sum_along_ticker_index_by_classifier(pd.DataFrame(self.current_holdings['Short']['Size']), classifier)
-            t = pd.concat([a, b], axis=1, sort=True).fillna(0.0)
-            t.index.name = classifier
-            t.columns = ['Long', 'Short']
-            if pct:
-                t = t / self.latest_capital
-            t['Net'] = t['Long'] + t['Short']            
-            self.current_holding_by_classifiers[classifier] = t.sort_values(by='Net', ascending=False)
-            
+            self.current_holding_by_classifiers[classifier] = self.getHoldingByClassifier(classifier, date=None, pct=pct)
         return self.current_holding_by_classifiers[classifier]
     
     def analyzePerfByClassfier(self, classifier, start_date = None, end_date = None, attribution = False, net_pnl = True):

@@ -5,6 +5,7 @@ author: yewen
 '''
 
 
+import warnings
 import pandas as pd
 import numpy as np
 import PMStack.Tools.finance as finance
@@ -142,6 +143,27 @@ class Portfolio_Print(portfolio_plot.Portfolio_Plot):
         for classifier in printSizeByClassifiers:
             r = self.getCurrentHoldingByClassifier(classifier)
             helpers.printPercentagePointTable(r, print_zero_as = '')
+    
+    def printHistoricalHoldingByClassifier(self, classifiers, period = 'M'):
+        if period != 'M':
+            warnings.warn('Only monthly frequency is supported for now')
+        rrr = {}
+        for classifier in classifiers:
+            r = None
+            for date in self.month_end_dates:
+                rr = pd.DataFrame(self.getHoldingByClassifier(classifier, date, pct=True)['Net']).rename(columns = {'Net':helpers.date_to_string(date)})
+                if r is None:
+                    r = rr
+                else:
+                    r = pd.concat([r, rr], axis=1)
+            r = r.sort_values(by=r.columns[0], ascending=False)
+            r.fillna(0,inplace = True)
+            rrr[classifier] = r
+            helpers.printPercentagePointTable(r, print_zero_as = '')
+        return rrr
+
+
+
 
     def printPerfAttribution(self):
         if self.statusPerformanceAttributed == False:
@@ -151,6 +173,19 @@ class Portfolio_Print(portfolio_plot.Portfolio_Plot):
         self.printEquityMarketTiming()
         self.__printPerfAttrToSelection__()
 
+    def printHistoricalExposure(self, period = 'Q'):
+        e = self.PA_snapshots[['Gross_Exposure','Net_Exposure']].resample(period).last()
+        e = e.T
+        helpers.printPercentagePointTable(e, print_zero_as = '-')
+        return e
+
+
+    def printHistorialReturnsByLS(self, period = 'Q'):
+        r = self.PA_snapshots_sampled_return[self.PA_snapshots_sampled_return['Frequency'] == period].copy()
+        r = r[['Return_Long','Return_Short']].T
+        helpers.printPercentagePointTable(r, print_zero_as = '-')
+        return r
+        
     
     def printHistoricalReturns(self, period = 'Q', periodic_benchmark_return = False):
         annual_returns = self.PA_snapshots_sampled_return[self.PA_snapshots_sampled_return['Frequency'] == 'A'].copy()
