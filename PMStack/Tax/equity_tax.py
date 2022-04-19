@@ -6,9 +6,9 @@ Created on Sep 9, 2017
 
 import pandas as pd
 import numpy as np
-import Equity_port.historical_trades as trade_history
-import Equity_port.historical_price as historical_price
-import Tools.helpers as helpers
+import PMStack.Equity_port.historical_trades as trade_history
+import PMStack.Equity_port.historical_price as historical_price
+import PMStack.Tools.helpers as helpers
 import warnings
 from IPython.display import display
 

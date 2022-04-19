@@ -137,54 +137,55 @@ class Portfolio_Core:
                 
                 long_short = 'Long'
                 
-                
-                
-                if (self.equity_balance_short.at[current_date, trade['Ticker']] != 0):
-                    long_short = 'Short'
-                elif (self.equity_balance_long.at[current_date, trade['Ticker']] == 0 and trade['Quantity'] < 0.0 ):
-                    long_short = 'Short'
-                
+                try:
                     
-                self.trades.loc[idx,'Long_Short'] = long_short
-                
-                #if (long_short == 'Short'):
-                #if (t.type in ['SHORT','COVER', 'Short', 'Cover']):
-                #    print(long_short, current_date, t.ticker, t.quantity, self.equity_balance_short.at[current_date, t.ticker])
-            
-                if (trade['TransactionType'] in ['BUY', 'SELL', 'SHORT', 'LONG','COVER']):
-                    amount = trade['TransactionAmount']
-                    self.trades.loc[idx,'TransactionAmountUSD'] = amount * self.forex.at[current_date, trade['Currency']]
-                elif (trade['TransactionType'] in ['OPTION ASSIGNMENT', 'OPTION EXECUTION']):
-                    amount = (-trade['Quantity'] * self.equity_prices_local.at[current_date, trade['Ticker']])
-                elif (trade['TransactionType'] in ['STOCK DIVIDEND', 'STOCK DIVIDENDS']):
-                    amount = 0.0
+                    if (self.equity_balance_short.at[current_date, trade['Ticker']] != 0):
+                        long_short = 'Short'
+                    elif (self.equity_balance_long.at[current_date, trade['Ticker']] == 0 and trade['Quantity'] < 0.0 ):
+                        long_short = 'Short'
                     
-                self.equity_balance[long_short].at[current_date, trade['Ticker']] += trade['Quantity']
-                self.currency_balance[long_short].at[current_date, trade['Currency']] += amount  
-                self.equity_cumulative_cost_USD[long_short].at[current_date, trade['Ticker']] += amount * self.forex.at[current_date, trade['Currency']]
-                
-                
-                
-                if (trade['TransactionType'] in ['BUY', 'LONG','COVER']) and (long_short == 'Long'):
-                    self.lastBuyPrice[trade['Ticker']] = amount * self.forex.at[current_date, trade['Currency']] / -trade['Quantity']
-                    if (self.lastBuyPrice[trade['Ticker']] > self.hightestBuyPrice[trade['Ticker']]): 
-                        self.hightestBuyPrice[trade['Ticker']] = self.lastBuyPrice[trade['Ticker']]                       
-                elif (trade['TransactionType'] in ['SELL', 'SHORT']) and (long_short == 'Short'):
-                    self.lastSellPrice[trade['Ticker']] = amount * self.forex.at[current_date, trade['Currency']] / -trade['Quantity']
-                    if (self.lastSellPrice[trade['Ticker']]<self.lowestSellPrice[trade['Ticker']]):
-                        self.lowestSellPrice[trade['Ticker']] = self.lastSellPrice[trade['Ticker']]
+                        
+                    self.trades.loc[idx,'Long_Short'] = long_short
                     
+                    #if (long_short == 'Short'):
+                    #if (t.type in ['SHORT','COVER', 'Short', 'Cover']):
+                    #    print(long_short, current_date, t.ticker, t.quantity, self.equity_balance_short.at[current_date, t.ticker])
+                
+                    if (trade['TransactionType'] in ['BUY', 'SELL', 'SHORT', 'LONG','COVER']):
+                        amount = trade['TransactionAmount']
+                        self.trades.loc[idx,'TransactionAmountUSD'] = amount * self.forex.at[current_date, trade['Currency']]
+                    elif (trade['TransactionType'] in ['OPTION ASSIGNMENT', 'OPTION EXECUTION']):
+                        amount = (-trade['Quantity'] * self.equity_prices_local.at[current_date, trade['Ticker']])
+                    elif (trade['TransactionType'] in ['STOCK DIVIDEND', 'STOCK DIVIDENDS']):
+                        amount = 0.0
+                        
+                    self.equity_balance[long_short].at[current_date, trade['Ticker']] += trade['Quantity']
+                    self.currency_balance[long_short].at[current_date, trade['Currency']] += amount  
+                    self.equity_cumulative_cost_USD[long_short].at[current_date, trade['Ticker']] += amount * self.forex.at[current_date, trade['Currency']]
+                    
+                    
+                    
+                    if (trade['TransactionType'] in ['BUY', 'LONG','COVER']) and (long_short == 'Long'):
+                        self.lastBuyPrice[trade['Ticker']] = amount * self.forex.at[current_date, trade['Currency']] / -trade['Quantity']
+                        if (self.lastBuyPrice[trade['Ticker']] > self.hightestBuyPrice[trade['Ticker']]): 
+                            self.hightestBuyPrice[trade['Ticker']] = self.lastBuyPrice[trade['Ticker']]                       
+                    elif (trade['TransactionType'] in ['SELL', 'SHORT']) and (long_short == 'Short'):
+                        self.lastSellPrice[trade['Ticker']] = amount * self.forex.at[current_date, trade['Currency']] / -trade['Quantity']
+                        if (self.lastSellPrice[trade['Ticker']]<self.lowestSellPrice[trade['Ticker']]):
+                            self.lowestSellPrice[trade['Ticker']] = self.lastSellPrice[trade['Ticker']]
+                        
 
-                if helpers.isZero(self.equity_balance[long_short].at[current_date, trade['Ticker']]): # clear out highest buy / lowest sell price if the position is back to zero
-                    
-                    self.equity_balance[long_short].at[current_date, trade['Ticker']] = 0.0 # clear out fraction shares
-                    
-                    if (long_short == 'Long'):
-                        self.hightestBuyPrice[trade['Ticker']] = 0.0
-                    elif (long_short == 'Short'):
-                        self.lowestSellPrice[trade['Ticker']] = 9999999.0
+                    if helpers.isZero(self.equity_balance[long_short].at[current_date, trade['Ticker']]): # clear out highest buy / lowest sell price if the position is back to zero
+                        
+                        self.equity_balance[long_short].at[current_date, trade['Ticker']] = 0.0 # clear out fraction shares
+                        
+                        if (long_short == 'Long'):
+                            self.hightestBuyPrice[trade['Ticker']] = 0.0
+                        elif (long_short == 'Short'):
+                            self.lowestSellPrice[trade['Ticker']] = 9999999.0
 
-                
+                except KeyError as err:
+                    print('KeyError', err)                
                 
                 
             elif(trade['SecurityType'] == 'Put' or trade['SecurityType'] == 'Call'):
