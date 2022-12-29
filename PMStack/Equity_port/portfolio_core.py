@@ -139,9 +139,9 @@ class Portfolio_Core:
                 
                 try:
                     
-                    if (self.equity_balance_short.at[current_date, trade['Ticker']] != 0):
+                    if (self._equity_balance_short.at[current_date, trade['Ticker']] != 0):
                         long_short = 'Short'
-                    elif (self.equity_balance_long.at[current_date, trade['Ticker']] == 0 and trade['Quantity'] < 0.0 ):
+                    elif (self._equity_balance_long.at[current_date, trade['Ticker']] == 0 and trade['Quantity'] < 0.0 ):
                         long_short = 'Short'
                     
                         
@@ -263,9 +263,9 @@ class Portfolio_Core:
             self.stock_info = stock_info.get_stock_info(file_stock_info['workbook_name'], file_stock_info['sheet_name'])
 
         #equity_balance keeps track of number of shares for each position (columns) on each day (row)
-        self.equity_balance_long = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.equity_prices_USD.columns.values).fillna(0.0)
-        self.equity_balance_short = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.equity_prices_USD.columns.values).fillna(0.0)
-        self.equity_balance = {'Long': self.equity_balance_long, 'Short': self.equity_balance_short}
+        self._equity_balance_long = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.equity_prices_USD.columns.values).fillna(0.0)
+        self._equity_balance_short = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.equity_prices_USD.columns.values).fillna(0.0)
+        self.equity_balance = {'Long': self._equity_balance_long, 'Short': self._equity_balance_short}
 
         #equity_cumulative_cost keeps track of cumulative cashflows involved with each position
         self.equity_cumulative_cost_long_USD = pd.DataFrame(index = self.equity_prices_USD.index.copy(), columns=self.equity_prices_USD.columns.values).fillna(0.0)
@@ -273,8 +273,8 @@ class Portfolio_Core:
         self.equity_cumulative_cost_USD = {'Long': self.equity_cumulative_cost_long_USD, 'Short': self.equity_cumulative_cost_short_USD}
         
         #option related
-        self.equity_balance_options = pd.DataFrame(index = self.equity_prices_USD.index.copy())
-        self.equity_balance['Options'] = self.equity_balance_options
+        self._equity_balance_options = pd.DataFrame(index = self.equity_prices_USD.index.copy())
+        self.equity_balance['Options'] = self._equity_balance_options
         self.equity_cumulative_cost_options_USD = pd.DataFrame(index = self.equity_prices_USD.index.copy())
         self.equity_cumulative_cost_USD['Options'] = self.equity_cumulative_cost_options_USD
         
@@ -294,8 +294,8 @@ class Portfolio_Core:
 
         self.lastBuyPrice = {}
         self.lastSellPrice = {}
-        self.hightestBuyPrice = pd.Series(index = self.equity_prices_USD.columns.copy()).fillna(0.0)
-        self.lowestSellPrice = pd.Series(index = self.equity_prices_USD.columns.copy()).fillna(99999.0)
+        self.hightestBuyPrice = pd.Series(index = self.equity_prices_USD.columns.copy(),dtype='float64').fillna(0.0)
+        self.lowestSellPrice = pd.Series(index = self.equity_prices_USD.columns.copy(),dtype='float64').fillna(99999.0)
         
         
         '''
@@ -309,7 +309,7 @@ class Portfolio_Core:
         if end_date != None: self.end_date = helpers.string_to_date(end_date)
         
         
-        self.has_option_book = (abs(self.equity_balance_options[self.start_date:self.end_date].values).sum()>0)
+        self.has_option_book = (abs(self._equity_balance_options[self.start_date:self.end_date].values).sum()>0)
 
         if helpers.isZero(self.equity_balance['Short'].values.sum()):
             self.long_only = True

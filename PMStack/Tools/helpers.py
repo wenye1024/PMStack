@@ -131,13 +131,12 @@ def excel_tables_to_relational_tables(tables, table_names, index_name, column_na
             for t in tables[0].columns:
                 index.append((p, t))
         output = pd.DataFrame(index = index, columns=[index_name, column_name])
-
-                    
+                   
         for (p,t) in output.index:
             for k, v in enumerate(tables):
-                output.loc[(p,t),table_names[k]] = v.loc[p,t]
-            output.loc[(p,t),index_name] = p
-            output.loc[(p,t),column_name] = t
+                output.loc[[(p,t)],table_names[k]] = v.loc[p,t]
+            output.loc[[(p,t)],index_name] = p
+            output.loc[[(p,t)],column_name] = t
                 
         output.reset_index(drop = True, inplace = True)
         output.set_index(new_index_name, inplace = True)

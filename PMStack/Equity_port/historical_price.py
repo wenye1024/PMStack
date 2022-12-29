@@ -308,7 +308,7 @@ def get_price_history (workbook='Historical price.xlsx', sheet='Historical price
     equity_daily_return_local = r['equity_price_local'].pct_change(1) #.dropna(axis = 0)
 
     equity_prices_USD = r['equity_price_local'].copy()
-    for i, v in r['equity_currency'].iteritems():
+    for i, v in r['equity_currency'].items():
         if (v!=base_currency):
             equity_prices_USD[i] = r['equity_price_local'][i] * r['forex'][v]
     

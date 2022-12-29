@@ -23,7 +23,7 @@ def get_trade_history (workbook_name, sheet_name, accounts = None):
 
     def tx_type_convert(x):
         x = str(x).upper()
-        if x == 'SHORT':
+        if x in ['SHORT', 'SELL SHORT', 'SHORT SELL']:
             x = 'SELL'
         elif x in ['LONG', 'COVER']:
             x = 'BUY'
